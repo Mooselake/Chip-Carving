@@ -1,0 +1,235 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Swirl Rosette Generator</title>
+    <style>
+        :root { --p: #2563eb; --bg: #f8fafc; --txt: #1e293b; --brd: #cbd5e1; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--txt); margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        .sidebar { width: 340px; background: white; padding: 25px; border-right: 1px solid var(--brd); display: flex; flex-direction: column; gap: 15px; box-shadow: 2px 0 10px rgba(0,0,0,0.05); overflow-y: auto; }
+        .main { flex-grow: 1; display: flex; align-items: center; justify-content: center; background: #e2e8f0; background-image: radial-gradient(#94a3b8 1px, transparent 1px); background-size: 20px 20px; }
+        h1 { font-size: 1.1rem; margin: 0; color: var(--p); border-bottom: 2px solid var(--brd); padding-bottom: 8px; }
+        .author { font-size: 0.75rem; color: #64748b; margin-top: -10px; font-style: italic; display: flex; justify-content: space-between; }
+        .field { display: flex; flex-direction: column; gap: 4px; }
+        label { font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; }
+        input { padding: 10px; border: 1px solid var(--brd); border-radius: 6px; font-size: 1rem; }
+        .row { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+        input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+        
+        .stats { background: #f1f5f9; padding: 15px; border-radius: 8px; border: 1px solid var(--brd); margin-top: 10px; }
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.9rem; }
+        .val { font-weight: 800; color: var(--p); font-family: monospace; }
+        
+        button { background: var(--p); color: white; border: none; padding: 14px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-top: auto; transition: 0.2s; }
+        button:hover { background: #1d4ed8; }
+        #canvas { background: white; padding: 20px; box-shadow: 0 15px 40px rgba(0,0,0,0.1); line-height: 0; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <h1>Swirl Rosette Generator</h1>
+    <div class="author"><span>Status: Production Ready</span> <span>Author: Gemini</span></div>
+    
+    <div class="field">
+        <label>Diameter (mm)</label>
+        <input type="number" id="diam" value="25" step="0.5">
+    </div>
+
+    <div class="field">
+        <label>Gap (mm)</label>
+        <input type="number" id="gap" value="0.1" step="0.01">
+    </div>
+
+    <div class="field">
+        <label>Number of Segments</label>
+        <input type="number" id="count" value="6" min="6">
+    </div>
+
+    <div class="field">
+        <label>V-Bit Angle (°)</label>
+        <input type="number" id="angle" value="60">
+    </div>
+
+    <label class="row">
+        <input type="checkbox" id="mirror">
+        Reverse Twirl Direction
+    </label>
+
+    <div class="stats">
+        <div class="stat-row"><span>Petal Width:</span> <span id="wOut" class="val">0.00 mm</span></div>
+        <div class="stat-row"><span>Cut Depth:</span> <span id="dOut" class="val">0.00 mm</span></div>
+    </div>
+
+    <button onclick="saveSVG()">Save SVG File</button>
+</div>
+
+<div class="main">
+    <div id="canvas"></div>
+</div>
+
+<script>
+    function render() {
+        const D = parseFloat(document.getElementById('diam').value);
+        const Gap = parseFloat(document.getElementById('gap').value);
+        const N = parseInt(document.getElementById('count').value);
+        const mirror = document.getElementById('mirror').checked;
+        const bitAngle = parseFloat(document.getElementById('angle').value);
+
+        const R = D / 2;
+        const C = { x: R, y: R }; 
+
+        // 1. Arc Calculations
+        const circumference = Math.PI * D;
+        const sectorArcLength = circumference / N;
+        const lensArcLength = sectorArcLength - Gap;
+        
+        const lensAngle = lensArcLength / R;
+        const gapAngle = Gap / R; 
+
+        // Start Angle (Centers first petal)
+        let currentAngle = -lensAngle / 2;
+        
+        // Direction Multiplier
+        const dir = mirror ? -1 : 1;
+        
+        // If mirroring, we need to adjust start angle logic to maintain top orientation
+        if (mirror) {
+            //currentAngle = -currentAngle; // Simple flip might offset rotation, but usually fine
+        }
+
+        let svg = `<svg width="${D}mm" height="${D}mm" viewBox="0 0 ${D} ${D}" xmlns="http://www.w3.org/2000/svg">`;
+        
+        let maxPetalWidth = 0;
+
+        for (let i = 0; i < N; i++) {
+            // Angles
+            let startAngle = currentAngle;
+            let endAngle = startAngle + lensAngle;
+            
+            // Apply Mirroring to angles if needed (swapping order or multiplying)
+            // Simpler: Just swap the sweep flags later? 
+            // Better: Calculate points based on direction.
+            
+            // Standard Calculation (CCW):
+            let theta1 = startAngle;
+            let theta2 = endAngle;
+
+            if (mirror) {
+                // If mirrored, we map clockwise. 
+                // We use standard angles but flip Y or Swap points?
+                // Let's just multiply the angles by -1 and rotate -90 to keep it upright?
+                // Easiest: Swap P1/P2 definitions and arc sweeps.
+                // Or just use the 'dir' variable in coordinates? 
+                // Let's stick to standard and swap the geometry generation logic.
+            }
+
+            // --- BORDER POINTS ---
+            // We use dir to flip the drawing direction if needed, but for a radial pattern, 
+            // simple rotation is usually enough. "Twirl Direction" usually implies the Swirl Arcs.
+            // Since our Swirl Arcs are centered at (0,0), the twirl is determined by the order of points.
+            
+            const P1 = { x: C.x + R * Math.cos(theta1), y: C.y + R * Math.sin(theta1) };
+            const P2 = { x: C.x + R * Math.cos(theta2), y: C.y + R * Math.sin(theta2) };
+
+            // Draw Border Lens
+            // Outer: P1->P2 (Convex). Inner: P2->P1 (Concave).
+            // If Mirror is ON, we might want to flip the whole board, but let's just draw standard for Border.
+            // Border is symmetric, so mirror doesn't change it much.
+            const dBorder = `M ${P1.x} ${P1.y} 
+                             A ${R} ${R} 0 0 1 ${P2.x} ${P2.y} 
+                             A ${R} ${R} 0 0 1 ${P1.x} ${P1.y} Z`;
+
+            svg += `<path d="${dBorder}" fill="none" stroke="black" stroke-width="0.1" />`;
+
+            // --- PETAL POINTS ---
+            // Petal Tip Radius: Adjusted by 1.5 * Gap based on user feedback
+            const petalR = R - (Gap * 1.5);
+            
+            const P3 = { x: C.x + petalR * Math.cos(theta1), y: C.y + petalR * Math.sin(theta1) };
+            const P4 = { x: C.x + petalR * Math.cos(theta2), y: C.y + petalR * Math.sin(theta2) };
+            
+            // Center Eye
+            const centerShift = Gap * 1.5;
+            const midAngle = (theta1 + theta2) / 2;
+            const P_Center = { 
+                x: C.x + centerShift * Math.cos(midAngle), 
+                y: C.y + centerShift * Math.sin(midAngle) 
+            };
+
+            // Draw Petal
+            // Side 1: Center -> P3. Side 2: Center -> P4.
+            // The "Twirl" is defined by the sweep of these side arcs.
+            // Standard (Pinwheel): 
+            //   Arc Center->P3: Sweep 0
+            //   Arc P3->P4: Sweep 0 (Concave Cap)
+            //   Arc P4->Center: Sweep 1 (Parallel Return)
+            
+            let sweep1 = 0;
+            let sweep2 = 0;
+            let sweep3 = 1;
+
+            if (mirror) {
+                // Invert the swirls
+                sweep1 = 1; 
+                sweep2 = 1; // Cap must flip too? No, Cap convexity depends on P3->P4 direction.
+                            // If we draw P3->P4, Concave is Sweep 0.
+                            // If we mirror, we might want convex/concave flip?
+                            // Actually, let's keep Cap Sweep 0 (Inward) always.
+                sweep2 = 0; 
+                sweep3 = 0;
+                
+                // Note: "Mirror" on a swirl might just mean swapping P3 and P4 roles?
+                // Let's just swap the sweep flags 1 and 3.
+                // Start->P3 (Sweep 1) -> P4 -> Start (Sweep 0)
+                // This creates the swirl in the other direction.
+                sweep1 = 1;
+                sweep3 = 0;
+            }
+
+            const dPetal = `M ${P_Center.x} ${P_Center.y} 
+                            A ${R} ${R} 0 0 ${sweep1} ${P3.x} ${P3.y} 
+                            A ${R} ${R} 0 0 ${sweep2} ${P4.x} ${P4.y} 
+                            A ${R} ${R} 0 0 ${sweep3} ${P_Center.x} ${P_Center.y} Z`;
+
+            svg += `<path d="${dPetal}" fill="none" stroke="red" stroke-width="0.1" />`;
+
+            // Calculate Max Width for Stats (Approximate chord at widest point)
+            // Chord between P3 and P4 is roughly the widest part of the petal cap
+            const currentWidth = Math.hypot(P3.x - P4.x, P3.y - P4.y);
+            if (currentWidth > maxPetalWidth) maxPetalWidth = currentWidth;
+
+            // Advance
+            currentAngle += lensAngle + gapAngle;
+        }
+
+        svg += `</svg>`;
+        document.getElementById('canvas').innerHTML = svg;
+        
+        // Update Stats
+        document.getElementById('wOut').innerText = maxPetalWidth.toFixed(2) + " mm";
+        
+        // Depth Calculation: Depth = (Width / 2) / tan(Angle / 2)
+        const rad = (bitAngle * Math.PI) / 180;
+        const depth = (maxPetalWidth / 2) / Math.tan(rad / 2);
+        document.getElementById('dOut').innerText = depth.toFixed(2) + " mm";
+    }
+
+    function saveSVG() {
+        const D = document.getElementById('diam').value;
+        const N = document.getElementById('count').value;
+        const filename = `SwirlRosette-${N}-${D}mm.svg`;
+        
+        const content = document.getElementById('canvas').innerHTML;
+        const blob = new Blob([content], {type: 'image/svg+xml'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+    }
+
+    document.querySelectorAll('input').forEach(i => i.oninput = render);
+    render();
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+Act as an expert web developer and CNC enthusiast. Create a single-file HTML/JavaScript tool titled "Swirl Rosette Generator".
+
+The tool should generate a specific twirl style chip carving rosette pattern for CNC V-Carving.
+
+### Functional Requirements:
+1.  **Inputs:**
+    * **Diameter (mm):** Overall size of the rosette (default 25mm).
+    * **Gap (mm):** The safety "land" or uncut space between all elements (default 0.1mm).
+    * **Number of Segments:** The count of petals/borders (minimum 6).
+    * **V-Bit Angle:** Used to calculate cut depth (e.g., 60 degrees).
+    * **Reverse Twirl:** A checkbox to flip the direction of the petal swirl.
+2.  **Outputs:**
+    * A live SVG preview of the rosette.
+    * A "Save SVG" button that downloads the file.
+    * **Important:** The SVG file must use explicit "mm" units in the header (e.g., `width="25mm" height="25mm"`) to ensure correct scaling when imported into software like Vectric V-Carve or Inkscape.
+    * Real-time statistics displaying the maximum petal width and the calculated cut depth for the selected V-Bit.
+3.  **Geometry Specifications (Crucial):**
+    * **General:** All arcs used in the design must share the same radius as the outer circle (Radius = Diameter / 2).
+    * **The Border:**
+        * Must be a series of closed "Lens" or "Football" shapes arranged on the rim.
+        * The width of a lens is determined by the sector circumference minus the configured Gap.
+        * The outer arc of the lens follows the circle rim (Convex).
+        * The inner arc of the lens curves inward (Concave).
+        * The result must be a closed path.
+    * **The Petals:**
+        * Must be "Pinwheel" or "Swirl" style petals nested inside the border.
+        * The sides of the petals are formed by arcs starting from the center (Swirl effect).
+        * The top (cap) of the petal must be a Concave arc that runs parallel to the inner curve of the Border Lens.
+        * **Clearance:** The petal must be shortened radially so that its tip is separated from the Border Lens by the configured Gap distance.
+    * **Separation:** Every shape (Border and Petal) must be an independent closed vector, separated from neighbors and each other by the configured Gap.
+
+### UI/UX:
+* Clean, modern sidebar layout for controls.
+* Responsive canvas area.
+* Credit the author as "Gemini" under the status line.
