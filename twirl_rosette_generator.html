@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swirl Rosette Generator</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React and Babel for single-file component support -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #f8fafc; }
+        #root { height: 100vh; width: 100vw; }
+        input[type="range"] { accent-color: #2563eb; }
+        .canvas-bg {
+            background-color: #e2e8f0;
+            background-image: radial-gradient(#94a3b8 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useCallback, useMemo, useEffect } = React;
+
+        // --- Constants & Defaults ---
+        const DEFAULT_PARAMS = {
+            diameter: 25,
+            gap: 0.1,
+            numSegments: 6,
+            bitAngle: 60,
+            mirror: false,
+            strokeWidth: 0.05, // Updated default line weight
+            strokeColor: '#1e293b',
+            petalColor: '#ef4444'
+        };
+
+        // --- UI Components ---
+        const ControlItem = ({ label, value, min, max, step, onChange }) => (
+            <div className="flex flex-col gap-2 mb-5 group">
+                <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-tight select-none">
+                        {label}
+                    </label>
+                    <input
+                        type="number"
+                        value={value}
+                        min={min}
+                        max={max}
+                        step={step}
+                        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+                        className="w-20 px-2 py-1 text-right text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 font-mono transition-all"
+                    />
+                </div>
+                <input
+                    type="range"
+                    value={value}
+                    min={min}
+                    max={max}
+                    step={step}
+                    onChange={(e) => onChange(parseFloat(e.target.value))}
+                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                />
+            </div>
+        );
+
+        // --- Rosette Preview Logic ---
+        const RosettePreview = ({ params, svgRef, onStatsUpdate }) => {
+            const { diameter, gap, numSegments, bitAngle, mirror, strokeWidth, strokeColor, petalColor } = params;
+            const R = diameter / 2;
+            const cx = R;
+            const cy = R;
+
+            const { paths, stats } = useMemo(() => {
+                const borderPaths = [];
+                const petalPaths = [];
+                const circumference = Math.PI * diameter;
+                const sectorArcLength = circumference / numSegments;
+                const lensArcLength = sectorArcLength - gap;
+                const lensAngle = lensArcLength / R;
+                const gapAngle = gap / R; 
+
+                let currentAngle = -lensAngle / 2;
+                let maxPetalWidth = 0;
+
+                for (let i = 0; i < numSegments; i++) {
+                    const theta1 = currentAngle;
+                    const theta2 = currentAngle + lensAngle;
+
+                    const P1 = { x: cx + R * Math.cos(theta1), y: cy + R * Math.sin(theta1) };
+                    const P2 = { x: cx + R * Math.cos(theta2), y: cy + R * Math.sin(theta2) };
+
+                    const dBorder = `M ${P1.x.toFixed(4)} ${P1.y.toFixed(4)} A ${R.toFixed(4)} ${R.toFixed(4)} 0 0 1 ${P2.x.toFixed(4)} ${P2.y.toFixed(4)} A ${R.toFixed(4)} ${R.toFixed(4)} 0 0 1 ${P1.x.toFixed(4)} ${P1.y.toFixed(4)} Z`;
+                    borderPaths.push(dBorder);
+
+                    const petalR = R - (gap * 1.5);
+                    const P3 = { x: cx + petalR * Math.cos(theta1), y: cy + petalR * Math.sin(theta1) };
+                    const P4 = { x: cx + petalR * Math.cos(theta2), y: cy + petalR * Math.sin(theta2) };
+                    const centerShift = gap * 1.5;
+                    const midAngle = (theta1 + theta2) / 2;
+                    const P_Center = { 
+                        x: cx + centerShift * Math.cos(midAngle), 
+                        y: cy + centerShift * Math.sin(midAngle) 
+                    };
+
+                    let sweep1 = mirror ? 1 : 0;
+                    let sweep2 = 0;
+                    let sweep3 = mirror ? 0 : 1;
+
+                    const dPetal = `M ${P_Center.x.toFixed(4)} ${P_Center.y.toFixed(4)} A ${R.toFixed(4)} ${R.toFixed(4)} 0 0 ${sweep1} ${P3.x.toFixed(4)} ${P3.y.toFixed(4)} A ${R.toFixed(4)} ${R.toFixed(4)} 0 0 ${sweep2} ${P4.x.toFixed(4)} ${P4.y.toFixed(4)} A ${R.toFixed(4)} ${R.toFixed(4)} 0 0 ${sweep3} ${P_Center.x.toFixed(4)} ${P_Center.y.toFixed(4)} Z`;
+                    petalPaths.push(dPetal);
+
+                    const currentWidth = Math.hypot(P3.x - P4.x, P3.y - P4.y);
+                    if (currentWidth > maxPetalWidth) maxPetalWidth = currentWidth;
+                    currentAngle += lensAngle + gapAngle;
+                }
+
+                const rad = (bitAngle * Math.PI) / 180;
+                const depth = (maxPetalWidth / 2) / Math.tan(rad / 2);
+                return { paths: { borderPaths, petalPaths }, stats: { petalWidth: maxPetalWidth, cutDepth: depth } };
+            }, [diameter, gap, numSegments, mirror, bitAngle, cx, cy, R]);
+
+            useEffect(() => { onStatsUpdate(stats); }, [stats, onStatsUpdate]);
+
+            return (
+                <div className="w-full h-full flex items-center justify-center p-4 md:p-12 canvas-bg shadow-inner">
+                    <div className="w-full h-full max-w-[85vh] max-h-[85vh] bg-white p-6 shadow-2xl rounded-sm flex items-center justify-center">
+                        <svg
+                            ref={svgRef}
+                            viewBox={`0 0 ${diameter} ${diameter}`}
+                            width={`${diameter}mm`}
+                            height={`${diameter}mm`}
+                            preserveAspectRatio="xMidYMid meet"
+                            className="w-full h-full"
+                            xmlns="http://www.w3.org/2000/svg"
+                            version="1.1"
+                        >
+                            {paths.borderPaths.map((d, i) => (
+                                <path key={`b-${i}`} d={d} fill="none" stroke={strokeColor} strokeWidth={strokeWidth} />
+                            ))}
+                            {paths.petalPaths.map((d, i) => (
+                                <path key={`p-${i}`} d={d} fill="none" stroke={petalColor} strokeWidth={strokeWidth} />
+                            ))}
+                        </svg>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Sidebar Component ---
+        const Sidebar = ({ params, stats, onParamChange, onDownload }) => (
+            <aside className="w-full md:w-80 h-full bg-white border-r border-slate-200 flex flex-col overflow-y-auto z-10 shadow-sm">
+                <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                    <h1 className="text-xl font-bold text-blue-600 tracking-tight">Swirl Rosette</h1>
+                    <div className="flex justify-between mt-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Production Ready</span>
+                        <span className="text-[10px] italic text-slate-400">v2.1</span>
+                    </div>
+                </div>
+
+                <div className="p-6 flex-1 space-y-6">
+                    <section>
+                        <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Geometry</h2>
+                        <ControlItem label="Diameter (mm)" value={params.diameter} min={5} max={1000} step={0.5} onChange={(v) => onParamChange('diameter', v)} />
+                        <ControlItem label="Gap (mm)" value={params.gap} min={0} max={10} step={0.01} onChange={(v) => onParamChange('gap', v)} />
+                        <ControlItem label="Segments" value={params.numSegments} min={6} max={120} step={1} onChange={(v) => onParamChange('numSegments', v)} />
+                        <ControlItem label="V-Bit Angle (°)" value={params.bitAngle} min={15} max={150} step={1} onChange={(v) => onParamChange('bitAngle', v)} />
+                        
+                        <label className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors border border-slate-100">
+                            <input type="checkbox" checked={params.mirror} onChange={(e) => onParamChange('mirror', e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                            <span className="text-sm font-semibold text-slate-700">Reverse Twirl</span>
+                        </label>
+                    </section>
+
+                    <section className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Tooling Stats</h2>
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center"><span className="text-xs text-slate-500">Petal Width:</span><span className="text-sm font-mono font-bold text-blue-600">{stats.petalWidth.toFixed(2)} mm</span></div>
+                            <div className="flex justify-between items-center"><span className="text-xs text-slate-500">Cut Depth:</span><span className="text-sm font-mono font-bold text-blue-600">{stats.cutDepth.toFixed(2)} mm</span></div>
+                        </div>
+                    </section>
+
+                    <section>
+                        <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Visual Style</h2>
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div className="flex flex-col gap-1">
+                                <label className="text-[10px] text-slate-400 uppercase font-bold">Stroke</label>
+                                <input type="color" value={params.strokeColor} onChange={e => onParamChange('strokeColor', e.target.value)} className="w-full h-8 cursor-pointer rounded border border-slate-200 bg-white" />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <label className="text-[10px] text-slate-400 uppercase font-bold">Petals</label>
+                                <input type="color" value={params.petalColor} onChange={e => onParamChange('petalColor', e.target.value)} className="w-full h-8 cursor-pointer rounded border border-slate-200 bg-white" />
+                            </div>
+                        </div>
+                        <ControlItem label="Line Weight" value={params.strokeWidth} min={0.01} max={1} step={0.01} onChange={(v) => onParamChange('strokeWidth', v)} />
+                    </section>
+                </div>
+
+                <div className="p-6 border-t border-slate-100 bg-slate-50/50">
+                    <button onClick={onDownload} className="w-full flex items-center justify-center gap-2 py-4 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-all shadow-md hover:shadow-lg active:scale-95">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        Save SVG File
+                    </button>
+                </div>
+            </aside>
+        );
+
+        // --- Main App ---
+        const App = () => {
+            const [params, setParams] = useState(DEFAULT_PARAMS);
+            const [stats, setStats] = useState({ petalWidth: 0, cutDepth: 0 });
+            const svgRef = useRef(null);
+
+            const handleParamChange = (key, value) => setParams(p => ({ ...p, [key]: value }));
+
+            const handleDownload = useCallback(() => {
+                if (!svgRef.current) return;
+                const serializer = new XMLSerializer();
+                const svgString = serializer.serializeToString(svgRef.current);
+                const xmlHeader = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n';
+                const blob = new Blob([xmlHeader + svgString], { type: 'image/svg+xml;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `Rosette-${params.numSegments}-${params.diameter}mm.svg`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }, [params]);
+
+            return (
+                <div className="flex flex-col md:flex-row h-screen w-screen bg-slate-100 overflow-hidden">
+                    <Sidebar params={params} stats={stats} onParamChange={handleParamChange} onDownload={handleDownload} />
+                    <main className="flex-1 relative h-full overflow-hidden">
+                        <RosettePreview params={params} svgRef={svgRef} onStatsUpdate={setStats} />
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
